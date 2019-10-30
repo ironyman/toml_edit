@@ -1,6 +1,6 @@
 use crate::decor::InternalString;
 use crate::parser;
-use crate::table::{Item, Iter, Table};
+use crate::table::{Item, Iter, IterRepr, Table};
 use std::str::FromStr;
 
 /// Type representing a TOML document
@@ -45,6 +45,13 @@ impl Document {
             .as_table()
             .expect("root should always be a table")
             .iter()
+    }
+
+    pub fn iter_repr(&self) -> IterRepr {
+        self.root
+            .as_table()
+            .expect("root should always be a table")
+            .iter_repr()
     }
 }
 

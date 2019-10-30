@@ -6,10 +6,46 @@ use pretty_assertions::assert_eq;
 use serde_json::Map as JsonMap;
 use serde_json::Value as Json;
 
-use toml_edit::{Document, Item, Iter, Value};
-use toml_edit::{InternalString};
+use toml_edit::{Document, Item, Iter, IterRepr, Value};
+use toml_edit::{InternalString, Repr};
 
-fn pair_to_json((key, value): (&[InternalString], Item)) -> (String, Json) {
+// fn pair_to_json((key, value): (&[InternalString], Item)) -> (String, Json) {
+//     fn typed_json(s: &str, json: Json) -> Json {
+//         let mut map = JsonMap::new();
+//         map.insert("type".to_owned(), Json::String(s.into()));
+//         map.insert("value".to_owned(), json);
+//         Json::Object(map)
+//     }
+//     fn value_to_json(value: &Value) -> Json {
+//         match *value {
+//             Value::String(ref s) => typed_json("string", Json::String(s.value().clone())),
+//             Value::Integer(ref i) => typed_json("integer", Json::String(format!("{}", i.value()))),
+//             Value::Float(ref f) => typed_json("float", Json::String(format!("{}", f.value()))),
+//             Value::Boolean(ref b) => typed_json("bool", Json::String(b.raw().into())),
+//             Value::DateTime(ref d) => typed_json("datetime", Json::String(d.raw().into())),
+//             Value::Array(ref a) => {
+//                 let json = Json::Array(a.iter().map(value_to_json).collect::<Vec<_>>());
+//                 typed_json("array", json)
+//             }
+//             Value::InlineTable(ref t) => {
+//                 to_json(Box::new(t.iter().map(|(k, v)| (k, Item::Value(v.clone())))))
+//             }
+//         }
+//     }
+//     let json = match value {
+//         Item::Value(ref v) => value_to_json(v),
+//         Item::ArrayOfTables(ref arr) => Json::Array(
+//             arr.iter()
+//                 .map(|t| to_json(iter_to_owned(t.iter())))
+//                 .collect::<Vec<_>>(),
+//         ),
+//         Item::Table(ref table) => to_json(iter_to_owned(table.iter())),
+//         Item::None => Json::Null,
+//     };
+//     (key.join("."), json)
+// }
+
+fn pair_to_json((key, value): (Repr, Item)) -> (String, Json) {
     fn typed_json(s: &str, json: Json) -> Json {
         let mut map = JsonMap::new();
         map.insert("type".to_owned(), Json::String(s.into()));
@@ -28,7 +64,7 @@ fn pair_to_json((key, value): (&[InternalString], Item)) -> (String, Json) {
                 typed_json("array", json)
             }
             Value::InlineTable(ref t) => {
-                to_json(Box::new(t.iter().map(|(k, v)| (k, Item::Value(v.clone())))))
+                to_json(Box::new(t.iter_repr().map(|(k, v)| (k.clone(), Item::Value(v.clone())))))
             }
         }
     }
@@ -36,23 +72,35 @@ fn pair_to_json((key, value): (&[InternalString], Item)) -> (String, Json) {
         Item::Value(ref v) => value_to_json(v),
         Item::ArrayOfTables(ref arr) => Json::Array(
             arr.iter()
-                .map(|t| to_json(iter_to_owned(t.iter())))
+                .map(|t| to_json(iter_to_owned(t.iter_repr())))
                 .collect::<Vec<_>>(),
         ),
-        Item::Table(ref table) => to_json(iter_to_owned(table.iter())),
+        Item::Table(ref table) => to_json(iter_to_owned(table.iter_repr())),
         Item::None => Json::Null,
     };
-    (key.join("."), json)
+    (key.raw_value, json)
 }
 
-fn iter_to_owned(iter: Iter) -> OwnedIter {
-    Box::new(iter.map(|(k, v)| (k, v.clone())))
+
+// fn iter_to_owned(iter: Iter) -> OwnedIter {
+//     Box::new(iter.map(|(k, v)| (k, v.clone())))
+// }
+
+
+fn iter_to_owned(iter: IterRepr) -> OwnedIterRepr {
+    Box::new(iter.map(|(k, v)| (k.clone(), v.clone())))
 }
+
 
 type OwnedIter<'s> = Box<dyn Iterator<Item = (&'s[InternalString], Item)> + 's>;
+type OwnedIterRepr<'s> = Box<dyn Iterator<Item = (Repr, Item)> + 's>;
 
 
-fn to_json(iter: OwnedIter) -> Json {
+// fn to_json(iter: OwnedIter) -> Json {
+//     Json::Object(iter.map(pair_to_json).collect())
+// }
+
+fn to_json(iter: OwnedIterRepr) -> Json {
     Json::Object(iter.map(pair_to_json).collect())
 }
 
@@ -65,7 +113,7 @@ fn run(json: &str, toml: &str) {
     let doc = doc.unwrap();
 
     let json: Json = serde_json::from_str(json).unwrap();
-    let toml_json = to_json(iter_to_owned(doc.iter()));
+    let toml_json = to_json(iter_to_owned(doc.iter_repr()));
     // compare structure with jsons
     assert_eq!(json, toml_json);
 

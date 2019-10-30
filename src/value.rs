@@ -1,4 +1,4 @@
-use crate::decor::{Decor, Formatted, InternalString};
+use crate::decor::{Decor, Repr, Formatted, InternalString};
 use crate::formatted;
 use crate::key::Key;
 use crate::parser;
@@ -152,6 +152,7 @@ impl Array {
 
 /// An iterator type over key/value pairs of an inline table.
 pub type InlineTableIter<'a> = Box<dyn Iterator<Item = (&'a[InternalString], &'a Value)> + 'a>;
+pub type InlineTableIterRepr<'a> = Box<dyn Iterator<Item = (&'a Repr, &'a Value)> + 'a>;
 
 impl InlineTable {
     /// Returns the number of key/value pairs.
@@ -171,6 +172,15 @@ impl InlineTable {
                 .iter()
                 .filter(|&(_, kv)| kv.value.is_value())
                 .map(|(k, kv)| (&k[..], kv.value.as_value().unwrap())),
+        )
+    }
+
+    pub fn iter_repr(&self) -> InlineTableIterRepr {
+        Box::new(
+            self.items
+                .iter()
+                .filter(|&(_, kv)| kv.value.is_value())
+                .map(|(k, kv)| (&kv.key, kv.value.as_value().unwrap())),
         )
     }
 
